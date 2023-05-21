@@ -1,14 +1,16 @@
 import sqlite3
 import os
-from flask import Flask, render_template, url_for, request, flash, session, redirect, abort, g
+from flask import Flask, render_template, url_for, request, flash, session, redirect, abort, g, make_response
 from FDataBase import FDataBase
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from UserLogin import UserLogin
+from forms import *
 
 DATABASE = '/tmp/flsite.db'
 DEBUG = True
 SECRET_KEY = 'fdghj25fghjk78okjhgy66vgbjhbv'
+MAX_CONTENT_LENGTH = 1024 * 1024
 
 app = Flask(__name__)
 app.config.from_object(__name__)
@@ -126,36 +128,46 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('profile'))
 
-    if request.method == 'POST':
-        user = dbase.getUserByEmail(request.form['email'])
-        if user and check_password_hash(user['password'], request.form['password']):
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = dbase.getUserByEmail(form.email.data)
+        if user and check_password_hash(user['password'], form.password.data):
             userlogin = UserLogin().create(user)
-            rm = True if request.form.get('remainme') else False
+            rm = form.remember.data
             login_user(userlogin, remember=rm)
             return redirect(request.args.get('next') or url_for('profile'))
 
         flash('Неверно заполнены поля', 'error')
 
-    return render_template('login.html', title='Авторизация', menu=dbase.getMenu())
+    return render_template('login.html', title='Авторизация', menu=dbase.getMenu(), form=form)
+
+    # if request.method == 'POST':
+    #     user = dbase.getUserByEmail(request.form['email'])
+    #     if user and check_password_hash(user['password'], request.form['password']):
+    #         userlogin = UserLogin().create(user)
+    #         rm = True if request.form.get('remainme') else False
+    #         login_user(userlogin, remember=rm)
+    #         return redirect(request.args.get('next') or url_for('profile'))
+    #
+    #     flash('Неверно заполнены поля', 'error')
+    #
+    # return render_template('login.html', title='Авторизация', menu=dbase.getMenu())
 
 
 @app.route('/register', methods=['POST', 'GET'])
 def register():
-    if request.method == 'POST':
-        if len(request.form['username']) > 4 and len(request.form['email']) > 4  \
-                 and len(request.form['password']) > 4 and request.form['password'] == request.form['password2']:
-            hash = generate_password_hash(request.form['password'])
-            res = dbase.addUser(request.form['username'], request.form['email'], hash)
+    form = RegisterForm()
+    if form.validate_on_submit():
+        hash = generate_password_hash(form.password.data)
+        res = dbase.addUser(form.username.data, form.email.data, hash)
 
-            if res:
-                flash('Новый пользователь успешно создан', 'success')
-                return redirect(url_for('login'))
-            else:
-                flash('Ошибка при добавлении в БД', 'error')
+        if res:
+            flash('Новый пользователь успешно создан', 'success')
+            return redirect(url_for('login'))
         else:
-            flash('Неверно заполнены поля', 'error')
+            flash('Ошибка при добавлении в БД', 'error')
 
-    return render_template('register.html', title='Регистрация', menu=dbase.getMenu())
+    return render_template('register.html', title='Регистрация', menu=dbase.getMenu(), form=form)
 
 
 @app.route('/logout')
@@ -173,10 +185,44 @@ def profile():
     #     abort(401)
     #
     # return f'Профиль пользователя {username}'
-    return f'''<p><a href="{url_for('logout')}">Выйти из профиля</a>
-                <p>user info: {current_user.get_id()}'''
-#
-#
+    # return f'''<p><a href="{url_for('logout')}">Выйти из профиля</a>
+    #             <p>user info: {current_user.get_id()}'''
+    return render_template('profile.html', title='Профиль', menu=dbase.getMenu())
+
+
+@app.route('/userava')
+@login_required
+def userava():
+    img = current_user.getAvatar(app)
+    if not img:
+        return ''
+
+    h = make_response(img)
+    h.headers['Content-type'] = 'image/png'
+    return h
+
+
+@app.route('/upload', methods=['POST', 'GET'])
+@login_required
+def upload():
+    if request.method == 'POST':
+        file = request.files['file']
+        if file and current_user.verifyExt(file.filename):
+            try:
+                img = file.read()
+                res = dbase.updateUserAvatar(img, current_user.get_id())
+                if not res:
+                    flash('Ошибка при обновлении аватара', 'error')
+                flash('Аватар обновлен', 'success')
+            except FileNotFoundError as e:
+                flash('Ошибка при чтении файла', 'error')
+        else:
+            flash('Ошибка при обновлении аватара', 'error')
+
+    return redirect(url_for('profile'))
+
+
+
 # @app.errorhandler(404)
 # def pageerror(error):
 #     return render_template('page404.html', title='Страница не найдено', menu=menu), 404
@@ -191,6 +237,7 @@ def profile():
 #     print(url_for('index'))
 #     print(url_for('about'))
 #     print(url_for('profile', username='doni'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)
