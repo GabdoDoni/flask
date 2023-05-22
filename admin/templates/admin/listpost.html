@@ -1,0 +1,14 @@
+{% extends 'admin/base_admin.html' %}
+
+{% block content %}
+{{ super() }}
+<p>{{ title }}</p>
+<ul>
+    {% for l in list %}
+    <li>
+        <p><a href="{{ url_for('showPost', alias=l.url) }}">{{ l.title }}</a></p>
+        <p>{{ l.text }}</p>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}

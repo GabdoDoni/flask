@@ -1,0 +1,18 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+{% for msg in get_flashed_messages(True) %}
+<div class="flash">{{ msg }}</div>
+{% endfor %}
+<form action="" method="post" class="form-contact">
+    <p><label>Имя: </label><input type="text" name="name"></p>
+    <p><label>Возраст: </label><input type="text" name="old"></p>
+    <p><label>Город: </label><input type="text" name="city"></p>
+    <p><label>Email: </label><input type="text" name="email"></p>
+    <p><label>Пароль: </label><input type="password" name="psw"></p>
+    <p><label>Повтор пароля: </label><input type="password" name="psw2"></p>
+    <p><input type="submit" value="Регистрация"></p>
+    <hr align=left width="300px">
+    <p><a href="{{ url_for('ind') }}">IND</a></p>
+</form>
+{% endblock %}
